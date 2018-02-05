@@ -1,0 +1,55 @@
+#!/bin/bash
+
+echo "Enter your AD password:"
+stty_orig=`stty -g`
+stty -echo
+read PASS
+stty $stty_orig
+
+output_dir=../configs/NetScr
+list=listNS
+devices=`cat $list`
+template=NetScr-expect
+templateVR=NetScr-expect-VR
+
+for device in $devices
+do
+
+chmod +x $template
+./$template $device $PASS | tee $output_dir/tmp/$device.tmp
+
+dos2unix $output_dir/tmp/$device.tmp 2>/dev/null
+cat -v $output_dir/tmp/$device.tmp | sed -e 's/^---.*H//' > $output_dir/tmp/$device
+rm -f $output_dir/tmp/$device.tmp
+
+chmod +x $templateVR
+./$templateVR $device $PASS | tee $output_dir/tmp/$device-VR.tmp
+
+dos2unix $output_dir/tmp/$device-VR.tmp 2>/dev/null
+sed -i 's/, /,/g' $output_dir/tmp/$device-VR.tmp
+sed -i 's/^\ \+//g' $output_dir/tmp/$device-VR.tmp
+sed -i 's/,/\n/g' $output_dir/tmp/$device-VR.tmp
+cat -v $output_dir/tmp/$device-VR.tmp | sed -e 's/^---.*H//' > $output_dir/tmp/$device-VR
+rm -f $output_dir/tmp/$device-VR.tmp
+
+grep KNOWN $output_dir/tmp/$device
+a=$?
+
+grep TIMED $output_dir/tmp/$device
+b=$?
+
+if [ "$a" -eq 0 ];then
+echo "" >> $output_dir/UNKNOWN-$device
+
+else if [ "$b" -eq 0 ];then
+echo "" >> $output_dir/TIMEOUT-$device
+
+#else
+
+#grep snmp-server $output_dir/tmp/$device | grep -v $device > $output_dir/$platform-$device
+#echo "" >> $output_dir/$platform-$device
+
+fi
+fi
+
+done

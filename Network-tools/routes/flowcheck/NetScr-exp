@@ -1,0 +1,52 @@
+#!/usr/bin/expect -f
+
+set DEVICE [lindex $argv 0]
+set USER [lindex $argv 1]
+set PASSWORD [lindex $argv 2]
+set VSYS [lindex $argv 3]
+set SZONE [lindex $argv 4]
+set DZONE [lindex $argv 5]
+set SIP [lindex $argv 6]
+set DIP [lindex $argv 7]
+
+set timeout 30
+
+spawn ssh -o StrictHostKeyChecking=no $USER@$DEVICE
+
+expect {
+
+"*assword:" {}
+
+timeout {
+send_user "\rConnection to $DEVICE has TIMED OUT\r"
+exit 1}
+
+"*not known*" {
+send_user "\rName or service $DEVICE NOT KNOWN\r"
+exit 1}
+}
+
+send "$PASSWORD\r"
+expect "*>"
+
+#send "set console page 0\r"
+#expect "*>"
+#send "get interface all\r"
+#sleep 1
+#expect "*>"
+#send "unset console page\r"
+
+send "enter vsys $VSYS\r"
+expect "*>"
+
+send "get policy from $SZONE to $DZONE src-ip $SIP dst-ip $DIP\r"
+expect {
+"\\->" {}
+"*more*" {
+send " "
+exp_continue}
+}
+
+#expect "*>"
+send "exit\r"
+exit

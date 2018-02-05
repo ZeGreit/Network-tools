@@ -1,0 +1,88 @@
+#!/usr/bin/expect -f
+
+set DEVICE [lindex $argv 0]
+set PASSWORD [lindex $argv 1]
+set USERNAME [lindex $argv 2]
+set PASSWORD2 [lindex $argv 3]
+set timeout 30
+
+match_max 30000
+spawn ssh -o StrictHostKeyChecking=no $DEVICE
+
+expect {
+
+"*assword:" {}
+
+"*refused" {
+match_max 30000
+spawn telnet $DEVICE
+send "$USERNAME\r"
+expect "*assword:"}
+
+timeout {
+send_user "\rConnection to $DEVICE has TIMED OUT\r"
+exit 1}
+
+"*not known*" {
+send_user "\rName or service $DEVICE NOT KNOWN\r"
+exit 1}
+}
+
+send "$PASSWORD\r"
+
+expect {
+
+"$DEVICE#" {}
+
+"$DEVICE>" {
+send "en\r"
+expect {
+"$DEVICE#" {}
+"*assword:" {
+send "$PASSWORD\r"
+expect "*#"}
+}}
+
+"*assword:" {
+send "$PASSWORD2\r"
+expect {
+"$DEVICE#" {}
+"$DEVICE>" {
+send "en\r"
+expect {
+"$DEVICE#" {}
+"*assword:" {
+send "$PASSWORD2\r"
+expect "*#"}
+}}}}
+
+"*sername:" {
+send "$USERNAME\r"
+expect "*assword:"
+send "$PASSWORD2\r"
+expect {
+"*#" {}
+"$DEVICE>" {
+send "en\r"
+expect {
+"$DEVICE#" {}
+"*assword:" {
+send "$PASSWORD2\r"
+expect "*#"}
+}}}}}
+
+send "ter len 0\r"
+expect "$DEVICE#"
+send "show run\r"
+sleep 1
+expect {
+full_buffer {
+append outcome $expect_out(buffer)
+exp_continue
+}
+"*#$" {
+append outcome $expect_out(buffer)
+}
+}
+send "exit\r"
+exit

@@ -1,0 +1,50 @@
+#!/bin/bash
+
+echo "Enter your username:"
+read USR
+
+echo "Enter your ACS password:" 
+stty_orig=`stty -g`
+stty -echo
+read PASS
+stty $stty_orig
+
+echo "Enter your AD password:"
+stty_orig=`stty -g`
+stty -echo
+read PASS2
+stty $stty_orig
+
+output_dir=../configs/Ext
+list=listEXT
+devices=`cat $list`
+template=Ext-expect
+
+for device in $devices
+do
+
+chmod +x $template
+./$template $device $PASS $USR $PASS2 | tee $output_dir/tmp/$device.tmp
+
+grep KNOWN $output_dir/tmp/$device.tmp
+a=$?
+
+grep TIMED $output_dir/tmp/$device.tmp
+b=$?
+
+if [ "$a" -eq 0 ];then
+echo "" >> $output_dir/UNKNOWN-$device
+
+else if [ "$b" -eq 0 ];then
+echo "" >> $output_dir/TIMEOUT-$device
+
+#else
+#platform=`grep Software $output_dir/tmp/$device.tmp | grep -v $device | awk '{print $4}'`
+
+#grep snmp-server $output_dir/tmp/$device.tmp | grep -v $device > $output_dir/$platform-$device
+#echo "" >> $output_dir/$platform-$device
+
+fi
+fi
+
+done

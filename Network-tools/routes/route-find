@@ -1,0 +1,160 @@
+#!/bin/bash
+
+IP=$1
+source=$2
+
+scope=20
+opt1=""
+
+if [[ "$IP" == *\/* ]];then
+    scope=`echo $IP | sed -e 's/^.*\///'`
+    IP=`echo $IP | sed -e 's/\/.*$//'`
+
+    test -z $(echo $scope | sed -e 's/[0-9]//g') || echo "Invalid subnet mask - exiting..."
+    test -z $(echo $scope | sed -e 's/[0-9]//g') || exit -1
+
+    if [ $scope -gt 32 ];then
+	echo "Invalid subnet mask, exiting..."
+	exit -1
+    fi
+fi
+
+optim=DUMMY
+
+workdir=/opt/app/network/routes
+outfile=output.tmp
+database=routes.db
+hostfile=/opt/app/network/traceroute/hosts-nx
+
+if [ "$4" == "-b" ];then
+    optim=trust
+fi
+
+if [ "$3" == "-b" ];then
+    optim=trust
+fi
+
+if [ "$2" == "-b" ];then
+    optim=trust
+    source=""
+fi
+
+if [ "$2" == "-a" ];then
+    opt1=attached
+    source=""
+fi
+
+if [ "$3" == "-a" ];then
+    opt1=attached
+fi
+
+if [ "$4" == "-a" ];then
+    opt1=attached
+fi
+ 
+
+if [ "$IP" == "-h" ] || [ "$IP" == "" ] ;then
+    echo ""
+    echo "Usage: $0 {<IP address>[/<mask>]|default} [<FILTER>] [-a] [-b]"
+    echo "       $0 [-h]"
+    echo ""
+    echo ""
+    echo " <mask>    specify subnet mask to search for longer routes than default (/20)".
+    echo ""
+    echo " default   search for default routes only."
+    echo ""
+    echo " <FILTER>  filter results by matching a string (like device name)."
+    echo ""
+    echo " -a	   show only directly connected subnets."
+    echo ""
+    echo " -b	   exclude trust-vr firewall tables from search to shorten search time."
+    echo ""
+    echo " -h	   prints this help message."
+    echo ""
+    exit 0
+fi
+
+echo Device"    "Subnet"    "NextHop"    "Interface > $workdir/$outfile
+
+
+if [ "$IP" == "default" ];then
+    sqlite3 $workdir/$database "select DEVICE,VDC,VRF,SUBNET,NEXTHOP,\"DEVICE:1\",\"VDC:1\",\"VRF:1\",IF,VIP,INTERFACE from result2 where SUBNET = '0.0.0.0/0' and (DEVICE like '%$source%' or VDC like '%$source%' or VRF like '%$source%') and VRF not like '%$optim%'"\
+    | while read line;do
+
+	echo $line | awk -F '|' '{print $1"-"$2"-"$3" "$4" "$6"-"$7"-"$8"-"$9"-"$10"("$5")"" "$11}' | sed -e 's/-\+/-/g' | sed -e 's/-(/(/g' | sed -e 's/\ (\(.*\))\ / \1 /' >> $workdir/$outfile
+    done
+
+    cat $workdir/$outfile | column -t | sed -e 's/NextHop/Next Hop/' | sed -e 's/NoRoute/no route/' | sed -e 's/-\ //g' | sed -e 's/\ Interface/Interface/'
+    rm -f $workdir/$outfile
+    exit 0
+fi
+
+echo $IP | grep -e '^[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}$' > /dev/null
+errcode=$?
+
+a=0
+
+if [ $errcode -ne 0 ];then
+    a=1
+fi
+
+if [ $a -ne 1 ];then
+
+    octets=`echo $IP | sed -e 's/\./ /g' `
+
+    for octet in $octets;do
+
+	if [ $octet -gt 255 ];then
+	    a=1
+	    break
+	fi
+    
+    done
+fi
+
+if [ $a -eq 1 ];then
+    echo ""
+    echo "IP address invalid or not full - doing a partial match..."
+    echo ""
+    sleep 2
+
+    sqlite3 $workdir/$database "select DEVICE,VDC,VRF,SUBNET,NEXTHOP,\"DEVICE:1\",\"VDC:1\",\"VRF:1\",IF,VIP,INTERFACE from result2 where SUBNET like '$IP%' and (DEVICE like '%$source%' or VDC like '%$source%' or VRF like '%$source%') and VRF not like '%$optim%'"\
+    | while read line;do
+	col=`echo $line | wc -w`
+    
+	    echo $line | awk -F '|' '{print $1"-"$2"-"$3" "$4" "$6"-"$7"-"$8"-"$9"-"$10"("$5")"" "$11}' | sed -e 's/-\+/-/g' | sed -e 's/-(/(/g' | sed -e 's/\ (\(.*\))\ / \1 /' >> $workdir/$outfile
+	done
+    
+    cat $workdir/$outfile | column -t | sed -e 's/NextHop/Next Hop/' | sed -e 's/NoRoute/no route/' | sed -e 's/\ Interface/Interface/' | sed -e 's/-\ //g' | grep 'Next Hop\|'$opt1''
+    rm -f $workdir/$outfile
+    exit 0
+fi
+
+sqlite3 $workdir/$database "select DEVICE,VDC,VRF,SUBNET,NEXTHOP,\"DEVICE:1\",\"VDC:1\",\"VRF:1\",IF,VIP,INTERFACE from result2 where SUBNET = '$IP/32' and (DEVICE like '%$source%' or VDC like '%$source%' or VRF like '%$source%') and VRF not like '%$optim%'"\
+| while read line;do
+    echo $line | awk -F '|' '{print $1"-"$2"-"$3" "$4" "$6"-"$7"-"$8"-"$9"-"$10"("$5")"" "$11}' | sed -e 's/-\+/-/g' | sed -e 's/-(/(/g' | sed -e 's/\ (\(.*\))\ / \1 /' >> $workdir/$outfile
+done
+
+for (( i = 30; i >=$scope; i-- ));do
+
+    if [ $i -eq 0 ];then
+	sqlite3 $workdir/$database "select DEVICE,VDC,VRF,SUBNET,NEXTHOP,\"DEVICE:1\",\"VDC:1\",\"VRF:1\",IF,VIP,INTERFACE from result2 where SUBNET = '0.0.0.0/0' and (DEVICE like '%$source%' or VDC like '%$source%' or VRF like '%$source%') and VRF not like '%$optim%'"\
+	| while read line;do
+	
+	    echo $line | awk -F '|' '{print $1"-"$2"-"$3" "$4" "$6"-"$7"-"$8"-"$9"-"$10"("$5")"" "$11}' | sed -e 's/-\+/-/g' | sed -e 's/-(/(/g' | sed -e 's/\ (\(.*\))\ / \1 /' >> $workdir/$outfile
+	done
+    break
+    fi
+
+    net=`ipcalc -n $IP/$i | sed -e 's/NETWORK\=//'`
+
+    sqlite3 $workdir/$database "select DEVICE,VDC,VRF,SUBNET,NEXTHOP,\"DEVICE:1\",\"VDC:1\",\"VRF:1\",IF,VIP,INTERFACE from result2 where SUBNET = '$net/$i' and (DEVICE like '%$source%' or VDC like '%$source%' or VRF like '%$source%') and VRF not like '%$optim%'"\
+    | while read line;do
+	
+	echo $line | awk -F '|' '{print $1"-"$2"-"$3" "$4" "$6"-"$7"-"$8"-"$9"-"$10"("$5")"" "$11}' | sed -e 's/-\+/-/g' | sed -e 's/-(/(/g' | sed -e 's/\ (\(.*\))\ / \1 /' >> $workdir/$outfile
+
+    done	    
+done
+
+cat $workdir/$outfile | column -t | sed -e 's/NextHop/Next Hop/' | sed -e 's/NoRoute/no route/' | sed -e 's/\ Interface/Interface/' | sed -e 's/-\ //g' | grep 'Next Hop\|'$opt1''
+rm -f $workdir/$outfile

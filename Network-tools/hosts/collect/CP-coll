@@ -1,0 +1,20 @@
+#!/bin/bash
+
+basedir=/home/user/scripts/host
+workdir=$basedir/collect
+output_dir=$basedir/configs/CP
+list=$workdir/listCP
+devices=`cat $list`
+#devices=RXRI600A
+templateRt=CP-expect
+
+for device in $devices
+do
+
+#chmod +x $workdir/$templateRt
+#$workdir/$templateRt $device $USER $PASS2 | tee $output_dir/$device.tmp
+
+/opt/app/network/bin/chkp-search -gw $device | tee $output_dir/$device.tmp
+
+done
+

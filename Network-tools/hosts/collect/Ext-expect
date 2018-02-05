@@ -1,0 +1,72 @@
+#!/usr/bin/expect -f
+
+set DEVICE [lindex $argv 0]
+set PASSWORD [lindex $argv 3]
+set USERNAME [lindex $argv 2]
+set PASSWORD2 [lindex $argv 1]
+set timeout 30
+
+match_max 30000
+spawn ssh -o StrictHostKeyChecking=no $DEVICE
+
+expect {
+
+"*assword*" {}
+
+"*refused" {
+match_max 30000
+spawn telnet $DEVICE
+send "$USERNAME\r"
+expect "*assword*"}
+
+timeout {
+send_user "\rConnection to $DEVICE has TIMED OUT\r"
+exit 1}
+
+"*not known*" {
+send_user "\rName or service $DEVICE NOT KNOWN\r"
+exit 1}
+}
+
+send "$PASSWORD\r"
+#sleep 1
+
+expect {
+
+"$DEVICE.1" {}
+
+"$DEVICE:1" {}
+
+"*assword*" {
+send "$PASSWORD2\r"
+expect "*#"}
+
+"*assword:*" {
+send "$PASSWORD2\r"
+expect "*#"}
+
+"*login:" {
+send "$USERNAME\r"
+expect "*assword*"
+send "$PASSWORD2\r"
+expect "*#"
+}}
+
+send "disable clipaging\r"
+expect "*#"
+send "show configuration\r"
+sleep 1
+
+expect {
+
+full_buffer {
+append outcome $expect_out(buffer)
+exp_continue}
+
+"$DEVICE" {
+append outcome $expect_out(buffer)}
+}
+
+expect "3 # $"
+send "exit\r"
+exit

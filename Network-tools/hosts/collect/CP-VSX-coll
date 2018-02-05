@@ -1,0 +1,23 @@
+#!/bin/bash
+
+SERVER=<IP>
+USER=username
+PASS=password
+
+basedir=/home/user/scripts/host
+workdir=$basedir/collect
+output_dir=$basedir/configs/CP
+list=$workdir/listCP-VSX
+devices=`cat $list`
+templateRt=CP-VSX-expect
+
+for device in $devices
+do
+number=`grep $device $list | wc -l`
+chmod +x $workdir/$templateRt
+$workdir/$templateRt $SERVER $USER $PASS $device $number | tee $output_dir/$device.tmp
+dos2unix $output_dir/$device.tmp
+egrep '\ IPv4\|[0-9]{1,3}\.' $output_dir/$device.tmp > $output_dir/$device
+rm -f $output_dir/$device.tmp
+done
+

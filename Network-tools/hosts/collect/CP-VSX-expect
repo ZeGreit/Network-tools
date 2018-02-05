@@ -1,0 +1,39 @@
+#!/usr/bin/expect -f
+
+set DEVICE [lindex $argv 0]
+set USER [lindex $argv 1]
+set PASSWORD [lindex $argv 2]
+set TARGET [lindex $argv 3]
+set NR [lindex $argv 4]
+
+set timeout 30
+
+spawn ssh -o StrictHostKeyChecking=no $USER@$DEVICE
+
+expect {
+
+"*assword:" {}
+
+timeout {
+send_user "\rConnection to $DEVICE has TIMED OUT\r"
+exit 1}
+
+"*not known*" {
+send_user "\rName or service $DEVICE NOT KNOWN\r"
+exit 1}
+}
+
+send "$PASSWORD\r"
+expect "*>"
+send "vsx_util view_vs_conf -c $TARGET -u admin -s 127.0.0.1\r"
+expect "*assword:"
+send "$PASSWORD\r"
+expect {
+"*>" {}
+"Select:*" {
+send "$NR\r"
+expect "*>"
+}
+}
+send "exit\r"
+exit

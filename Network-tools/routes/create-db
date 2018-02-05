@@ -1,0 +1,79 @@
+#!/bin/bash
+
+#grep ^ tables/* | sed -e 's/^tables\///' | sed -e 's/\:/|/' | sed -e 's/\ \+/|/g' | sed -e 's/|$//' > common
+#grep -v -e ".*|.*|.*|.*" common | sed -e 's/$/|/' > routes.csv
+#grep -e ".*|.*|.*|.*" common >> routes.csv
+#rm -f common
+#cat ../traceroute/hosts-nx | sed -e 's/\ /|/' > hosts.csv
+
+workdir=/opt/app/network/routes
+
+all=`sqlite3 $workdir/routes.db "select * from routes2;" | wc -l`
+fw=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'fw%';" | wc -l`
+lb=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'lb%';" | wc -l`
+appv=`sqlite3 $workdir/routes.db "select * from routes2 where device like '%600%';" | wc -l`
+core=`sqlite3 $workdir/routes.db "select * from routes2 where device like '%300%';" | wc -l`
+DS=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'rx%';" | grep rx | wc -l`
+L3S=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'hx%';" | wc -l`
+WR=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'ru%';" | wc -l`
+CP=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'fwpc%';" | wc -l`
+
+echo ""
+echo "	  OLD database routes"
+echo ""
+echo "NetScreen firewall:                     $fw"
+echo "ACE LB:                                 $lb"
+echo "AppVer:                                 $appv"
+echo "Core Prod:                              $core"
+echo "Cisco IOS distribution routers (rx):    $DS"
+echo "Cisco IOS L3 switches (hx):             $L3S"
+echo "Cisco IOS edge routers (ru):            $WR"
+echo "Checkpoint:                             $CP"
+echo "==============================================="
+echo "All: $all"
+echo ""
+
+yest=`date -d "yesterday 13:00" '+%Y-%m-%d'`
+
+mv $workdir/routes.db $workdir/old/routes.db-$yest
+
+sqlite3 $workdir/routes.db "create table routes(DEVICE TEXT NOT NULL, SUBNET CHAR(50) NOT NULL, NEXTHOP CHAR(50) NOT NULL, INTERFACE CHAR(50));"
+sqlite3 $workdir/routes.db ".import $workdir/import/routes.csv routes"
+sqlite3 $workdir/routes.db "create table hosts(IP CHAR(50) NOT NULL, HOSTS CHAR(50) NOT NULL);"
+sqlite3 $workdir/routes.db ".import $workdir/import/hosts.csv hosts"
+sqlite3 $workdir/routes.db "CREATE VIEW result as select * from routes left outer join hosts on routes.NEXTHOP = hosts.IP"
+
+sqlite3 $workdir/routes.db "create table hosts2(IP CHAR(50) NOT NULL, DEVICE CHAR(50) NOT NULL, VDC CHAR(50), VRF CHAR(50), IF CHAR(50) NOT NULL, VIP CHAR(50));"
+sqlite3 $workdir/routes.db ".import $workdir/import/hosts-NSD hosts2"
+sqlite3 $workdir/routes.db "create table routes2(DEVICE TEXT NOT NULL, VDC CHAR(50), VRF CHAR(50), SUBNET CHAR(50) NOT NULL, NEXTHOP CHAR(50) NOT NULL, INTERFACE CHAR(50));"
+sqlite3 $workdir/routes.db ".import $workdir/import/routes-NSD routes2"
+sqlite3 $workdir/routes.db "create table zones(IP CHAR(50) NOT NULL, DEV CHAR(50) NOT NULL, VSYS CHAR(50), ZONE CHAR(50), INT CHAR(50) NOT NULL);"
+sqlite3 $workdir/routes.db ".import $workdir/import/zones-NSD zones"
+sqlite3 $workdir/routes.db "CREATE VIEW fwzone as select * from routes2 left outer join zones on routes2.INTERFACE = zones.INT and routes2.DEVICE = zones.DEV and routes2.VDC = zones.VSYS;"
+sqlite3 $workdir/routes.db "CREATE VIEW result2 as select * from routes2 left outer join hosts2 on routes2.NEXTHOP = hosts2.IP;"
+sqlite3 $workdir/routes.db "CREATE INDEX subn on routes2 (SUBNET);"
+
+all=`sqlite3 $workdir/routes.db "select * from routes2;" | wc -l`
+fw=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'fw%';" | wc -l`
+lb=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'lb%';" | wc -l`
+appv=`sqlite3 $workdir/routes.db "select * from routes2 where device like '%600%';" | wc -l`
+core=`sqlite3 $workdir/routes.db "select * from routes2 where device like '%300%';" | wc -l`
+DS=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'rx%';" | grep rx | wc -l`
+L3S=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'hx%';" | wc -l`
+WR=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'ru%';" | wc -l`
+CP=`sqlite3 $workdir/routes.db "select * from routes2 where device like 'fwpc%';" | wc -l`
+
+echo ""
+echo "	  NEW database routes"
+echo ""
+echo "NetScreen firewall:                     $fw"
+echo "ACE LB:                                 $lb"
+echo "AppVer:                                 $appv"
+echo "Core Prod:                              $core"
+echo "Cisco IOS distribution routers (rx):    $DS"
+echo "Cisco IOS L3 switches (hx):             $L3S"
+echo "Cisco IOS edge routers (ru):            $WR"
+echo "Checkpoint:                             $CP"
+echo "==============================================="
+echo "All: $all"
+echo ""

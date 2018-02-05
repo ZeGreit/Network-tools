@@ -1,0 +1,51 @@
+#!/usr/bin/expect -f
+
+set DEVICE [lindex $argv 1]
+set PASSWORD [lindex $argv 0]
+set SZONE [lindex $argv 2]
+set DZONE [lindex $argv 3]
+set SIP [lindex $argv 4]
+set DIP [lindex $argv 5]
+set PROTO [lindex $argv 6]
+set PORT [lindex $argv 7]
+set USER [lindex $argv 8]
+
+set timeout 30
+
+spawn ssh -o StrictHostKeyChecking=no $USER@$DEVICE
+
+expect {
+
+"*assword:" {}
+
+timeout {
+send_user "\rConnection to $DEVICE has TIMED OUT\r"
+exit 1}
+
+"*not known*" {
+send_user "\rName or service $DEVICE NOT KNOWN\r"
+exit 1}
+}
+
+send "$PASSWORD\r"
+expect "$DEVICE>"
+#expect "nexusbackup"
+
+send "set cli screen-width 300\r"
+expect "$DEVICE>"
+
+#send_user "\rshow security match-policies from-zone $SZONE to-zone $DZONE source-ip $SIP destination-ip $DIP source-port 1 destination-port $PORT protocol $PROTO\r"
+#sleep 5
+send "show security match-policies from-zone $SZONE to-zone $DZONE source-ip $SIP destination-ip $DIP source-port 1024 destination-port $PORT protocol $PROTO\r"
+
+
+expect {
+"$DEVICE>" {}
+#"nexusbackup" {}
+"*more*" {
+send " "
+exp_continue}
+}
+
+send "exit\r"
+exit

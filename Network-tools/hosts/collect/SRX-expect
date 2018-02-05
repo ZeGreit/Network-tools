@@ -1,0 +1,29 @@
+#!/usr/bin/expect -f
+
+set DEVICE [lindex $argv 0]
+set PASSWORD [lindex $argv 1]
+
+set timeout 30
+
+spawn ssh -o StrictHostKeyChecking=no $DEVICE
+
+expect {
+
+"*assword:" {}
+
+timeout {
+send_user "\rConnection to $DEVICE has TIMED OUT\r"
+exit 1}
+
+"*not known*" {
+send_user "\rName or service $DEVICE NOT KNOWN\r"
+exit 1}
+}
+
+send "$PASSWORD\r"
+expect "$DEVICE>"
+send "show interfaces routing | no-more\r"
+#sleep 2
+expect "*>"
+send "exit\r"
+exit
