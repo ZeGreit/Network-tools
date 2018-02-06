@@ -328,7 +328,7 @@ sub check_ip {
 
 sub R_NSlookup {
     my $res = Net::DNS::Resolver->new;
-    my $name_server = '172.17.36.136'; # TO DO: add more DNS servers for redundancy
+    my $name_server = 'IPofDNSserver'; # TO DO: add more DNS servers for redundancy
     my $addr = shift;
     my $reverse = join( '.', reverse( split /\./, $addr)) . '.in-addr.arpa';
     $res->nameservers($name_server);
