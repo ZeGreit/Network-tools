@@ -55,43 +55,33 @@ class NetBoxIPSync(Script):
     def load_json_from_datasource(self, datasource_name, json_file_name):
         """Read and parse JSON from NetBox Datasource"""
         from extras.models import DataSource
-
+        import pathlib
+    
         try:
             # Get the datasource object
             datasource = DataSource.objects.get(name=datasource_name)
-
-            # NetBox stores datasources in /opt/netbox/data/ with files in 'files' subdir
-            data_base_path = "/opt/netbox/data"
-            datasource_dir = os.path.join(data_base_path, datasource_name)
-
-            if not os.path.exists(datasource_dir):
+    
+            # NetBox stores the actual filesystem path in datasource.path
+            datasource_dir = pathlib.Path(datasource.path)
+    
+            if not datasource_dir.exists():
                 raise FileNotFoundError(f"Datasource directory not found: {datasource_dir}")
-
+    
             # Construct full path to JSON file
-            json_path = os.path.join(datasource_dir, json_file_name)
-
-            if not os.path.exists(json_path):
-                # Check in the 'files' subdirectory (common pattern)
-                files_dir = os.path.join(datasource_dir, "files")
-                if os.path.exists(files_dir):
-                    for root, dirs, files in os.walk(files_dir):
-                        for file in files:
-                            if file == json_file_name:
-                                json_path = os.path.join(root, file)
-                                break
-
-            if not os.path.exists(json_path):
+            json_path = datasource_dir / json_file_name
+    
+            if not json_path.exists():
                 raise FileNotFoundError(f"JSON file not found: {json_path}")
-
+    
             with open(json_path, 'r') as f:
                 data = json.load(f)
-
+    
             # Validate structure
             if not isinstance(data, list):
                 raise ValueError("JSON file must contain a list of IP address objects")
-
+    
             return data
-
+    
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON format: {e}")
         except DataSource.DoesNotExist:
